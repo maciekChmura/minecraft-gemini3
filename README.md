@@ -15,5 +15,6 @@ https://minecraft-gemini3.pages.dev/
 
 ## How to Run
 
-1. Open `index.html` in a modern web browser.
-2. Click to lock the pointer and start playing.
+1. run `python3 -m http.server` in the root directory
+2. open http://localhost:8000 in your browser
+2. click to lock the pointer and start playing.

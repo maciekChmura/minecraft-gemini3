@@ -140,9 +140,27 @@
         // World Generation
         const worldSize = 40;
         const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshLambertMaterial({ color: 0x44aa44 }); // Grass green
 
-        const mesh = new THREE.InstancedMesh(geometry, material, worldSize * worldSize);
+        const loader = new THREE.TextureLoader();
+        const textureSide = loader.load('textures/dirt-side.jpg');
+        const textureTop = loader.load('textures/dirt-top.jpg');
+        const textureBottom = loader.load('textures/dirt-bottom.jpg');
+
+        // Pixelated look
+        textureSide.magFilter = THREE.NearestFilter;
+        textureTop.magFilter = THREE.NearestFilter;
+        textureBottom.magFilter = THREE.NearestFilter;
+
+        const materials = [
+            new THREE.MeshLambertMaterial({ map: textureSide }), // Right
+            new THREE.MeshLambertMaterial({ map: textureSide }), // Left
+            new THREE.MeshLambertMaterial({ map: textureTop }),  // Top
+            new THREE.MeshLambertMaterial({ map: textureBottom }), // Bottom
+            new THREE.MeshLambertMaterial({ map: textureSide }), // Front
+            new THREE.MeshLambertMaterial({ map: textureSide })  // Back
+        ];
+
+        const mesh = new THREE.InstancedMesh(geometry, materials, worldSize * worldSize);
         mesh.receiveShadow = true;
         mesh.castShadow = true;
         scene.add(mesh);
@@ -287,7 +305,7 @@
                             }
                         }
 
-                        const voxel = new THREE.Mesh(geometry, material);
+                        const voxel = new THREE.Mesh(geometry, materials);
                         voxel.position.copy(voxelPos);
                         voxel.castShadow = true;
                         voxel.receiveShadow = true;
