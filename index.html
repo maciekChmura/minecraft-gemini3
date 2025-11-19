@@ -1,12 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minecraft Clone</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            background-color: transparent;
+            border: 2px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background-color: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
     </style>
     <!-- Three.js CDN -->
     <script type="importmap">
@@ -18,11 +51,212 @@
         }
     </script>
 </head>
+
 <body>
+    <div id="crosshair"></div>
     <script type="module">
         import * as THREE from 'three';
-        // Game code will go here
-        console.log("Three.js ready");
+
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        scene.fog = new THREE.Fog(0x87CEEB, 10, 50);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.y = 2; // Start player above ground
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+
+        // World Generation
+        const worldSize = 40;
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshLambertMaterial({ color: 0x44aa44 }); // Grass green
+
+        const mesh = new THREE.InstancedMesh(geometry, material, worldSize * worldSize);
+        scene.add(mesh);
+
+        const dummy = new THREE.Object3D();
+        let index = 0;
+
+        for (let x = 0; x < worldSize; x++) {
+            for (let z = 0; z < worldSize; z++) {
+                dummy.position.set(x - worldSize / 2, 0, z - worldSize / 2);
+                dummy.updateMatrix();
+                mesh.setMatrixAt(index++, dummy.matrix);
+            }
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+
+        // Controls
+        const controls = new PointerLockControls(camera, document.body);
+        document.addEventListener('click', () => controls.lock());
+
+        const onKeyDown = function (event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW': moveForward = true; break;
+                case 'ArrowLeft':
+                case 'KeyA': moveLeft = true; break;
+                case 'ArrowDown':
+                case 'KeyS': moveBackward = true; break;
+                case 'ArrowRight':
+                case 'KeyD': moveRight = true; break;
+                case 'Space': if (canJump === true) velocity.y += 15; canJump = false; break;
+            }
+        };
+
+        const onKeyUp = function (event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW': moveForward = false; break;
+                case 'ArrowLeft':
+                case 'KeyA': moveLeft = false; break;
+                case 'ArrowDown':
+                case 'KeyS': moveBackward = false; break;
+                case 'ArrowRight':
+                case 'KeyD': moveRight = false; break;
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+
+        // Physics variables
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let canJump = false;
+
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        let prevTime = performance.now();
+
+        // Interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const highlightMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(1.001, 1.001, 1.001),
+            new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true })
+        );
+        scene.add(highlightMesh);
+        highlightMesh.visible = false;
+
+        const objects = [mesh]; // Objects to intersect (initially just the ground)
+
+        document.addEventListener('mousedown', (event) => {
+            if (!controls.isLocked) return;
+
+            if (highlightMesh.visible) {
+                if (event.button === 0) { // Left click: Remove
+                    // We need to find which object we are looking at
+                    const intersects = raycaster.intersectObjects(objects);
+                    if (intersects.length > 0) {
+                        const instanceId = intersects[0].instanceId;
+                        if (instanceId !== undefined) {
+                            // It's an instanced mesh block
+                            const matrix = new THREE.Matrix4();
+                            mesh.getMatrixAt(instanceId, matrix);
+                            matrix.scale(new THREE.Vector3(0, 0, 0));
+                            mesh.setMatrixAt(instanceId, matrix);
+                            mesh.instanceMatrix.needsUpdate = true;
+                        } else {
+                            // It's a placed block (normal Mesh)
+                            scene.remove(intersects[0].object);
+                            objects.splice(objects.indexOf(intersects[0].object), 1);
+                        }
+                    }
+                } else if (event.button === 2) { // Right click: Place
+                    const intersects = raycaster.intersectObjects(objects);
+                    if (intersects.length > 0) {
+                        const intersect = intersects[0];
+                        const voxel = new THREE.Mesh(geometry, material);
+                        voxel.position.copy(intersect.point).add(intersect.face.normal).floor().addScalar(0.5);
+                        scene.add(voxel);
+                        objects.push(voxel);
+                    }
+                }
+            }
+        });
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+
+            if (controls.isLocked === true) {
+                // ... (Physics code remains same) ...
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+                velocity.y -= 9.8 * 5.0 * delta; // 100.0 = mass
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) velocity.z -= direction.z * 100.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 100.0 * delta;
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+
+                controls.getObject().position.y += (velocity.y * delta);
+
+                if (controls.getObject().position.y < 1.5) {
+                    velocity.y = 0;
+                    controls.getObject().position.y = 1.5;
+                    canJump = true;
+                }
+
+                // Raycasting
+                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                const intersects = raycaster.intersectObjects(objects);
+
+                if (intersects.length > 0) {
+                    const intersect = intersects[0];
+                    highlightMesh.position.copy(intersect.point).add(intersect.face.normal.clone().multiplyScalar(0.5)).floor().addScalar(0.5);
+                    // Adjust highlight position based on whether we are looking at the block or empty space (for placement logic it's tricky, 
+                    // but for highlighting the TARGET block, we should look at intersect.point - normal * small_amount)
+                    // Actually, standard Minecraft highlights the block you are looking AT.
+
+                    // Re-calculate to highlight the existing block
+                    const lookTarget = intersect.point.clone().sub(intersect.face.normal.clone().multiplyScalar(0.1)).floor().addScalar(0.5);
+                    highlightMesh.position.copy(lookTarget);
+
+                    highlightMesh.visible = true;
+                } else {
+                    highlightMesh.visible = false;
+                }
+            }
+
+            prevTime = time;
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Resize Handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
+
 </html>
