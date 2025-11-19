@@ -184,7 +184,7 @@
                     if (intersects.length > 0) {
                         const intersect = intersects[0];
                         const voxel = new THREE.Mesh(geometry, material);
-                        voxel.position.copy(intersect.point).add(intersect.face.normal).floor().addScalar(0.5);
+                        voxel.position.copy(intersect.point).add(intersect.face.normal.clone().multiplyScalar(0.5)).addScalar(0.5).floor();
                         scene.add(voxel);
                         objects.push(voxel);
                     }
@@ -235,7 +235,7 @@
                     // Actually, standard Minecraft highlights the block you are looking AT.
 
                     // Re-calculate to highlight the existing block
-                    const lookTarget = intersect.point.clone().sub(intersect.face.normal.clone().multiplyScalar(0.1)).floor().addScalar(0.5);
+                    const lookTarget = intersect.point.clone().sub(intersect.face.normal.clone().multiplyScalar(0.1)).addScalar(0.5).floor();
                     highlightMesh.position.copy(lookTarget);
 
                     highlightMesh.visible = true;
