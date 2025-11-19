@@ -69,6 +69,8 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
         // Lighting
@@ -77,6 +79,15 @@
 
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
         dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
+        dirLight.shadow.camera.left = -25;
+        dirLight.shadow.camera.right = 25;
+        dirLight.shadow.camera.top = 25;
+        dirLight.shadow.camera.bottom = -25;
         scene.add(dirLight);
 
         // World Generation
@@ -85,6 +96,8 @@
         const material = new THREE.MeshLambertMaterial({ color: 0x44aa44 }); // Grass green
 
         const mesh = new THREE.InstancedMesh(geometry, material, worldSize * worldSize);
+        mesh.receiveShadow = true;
+        mesh.castShadow = true;
         scene.add(mesh);
 
         const dummy = new THREE.Object3D();
@@ -229,6 +242,8 @@
 
                         const voxel = new THREE.Mesh(geometry, material);
                         voxel.position.copy(voxelPos);
+                        voxel.castShadow = true;
+                        voxel.receiveShadow = true;
                         scene.add(voxel);
                         objects.push(voxel);
 
